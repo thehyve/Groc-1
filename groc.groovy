@@ -87,6 +87,42 @@ parseFiles(root)
 /*
  * Comment not parsed
  */
+def parseCode(sourceCode) {
+    def parsedCode=[]
+    boolean commentOn=false
+    def currentCode=["",""] // comment,code
+    sourceCode.eachLine{
+        def line=it
+        if(it =~ /^ *\/\*\*.*/){
+            if(!commentOn){
+                if(currentCode && currentCode.join("").size()>0){
+                    parsedCode<<currentCode
+                    currentCode=["", ""]
+                }
+                line=it.replaceFirst(/^ *\/\*\**/,"")
+                commentOn=true
+            }
+        }
+        if(commentOn){
+            currentCode[0]+=((line =~ '\\*+/ *$')
+                    .replaceFirst("") =~ "^ *\\*")
+                    .replaceFirst("")+"\n"
+        }
+        else{
+            if(line.size()==0){
+                if(currentCode && currentCode.join("").size()>0)parsedCode<<currentCode
+                currentCode=["", ""]
+            }
+            else currentCode[1]+=line+"\n"
+        }
+        if(commentOn && it =~ /.*\*\//){
+            commentOn=false
+        }
+    }
+    if(currentCode && currentCode.join("").size()>0)parsedCode << currentCode
+    parsedCode
+}
+
 /*********************
  *## The main method
  *
@@ -100,38 +136,7 @@ def createGroc(File source, File output, String returningPath){
   /**
    *## The Parser
    */
-  def parsedCode=[]
-  boolean commentOn=false
-  def currentCode=["",""] // comment,code
-  source.eachLine{
-    def line=it
-    if(it =~ /^ *\/\*\*.*/){
-      if(!commentOn){
-        if(currentCode && currentCode.join("").size()>0){
-            parsedCode<<currentCode
-            currentCode=["", ""]
-        }
-        line=it.replaceFirst(/^ *\/\*\*.*/,"")
-        commentOn=true
-      }
-    }
-    if(commentOn){
-      currentCode[0]+=((line =~ ".?\\*\\**/")
-          .replaceFirst("") =~ "^ *\\*")
-          .replaceFirst("")+"\n"
-    }
-    else{
-      if(line.size()==0){
-        if(currentCode && currentCode.join("").size()>0)parsedCode<<currentCode
-        currentCode=["", ""]
-      }
-      else currentCode[1]+=line+"\n"
-    }
-    if(it =~ /.*\*\//){
-      commentOn=false
-    }
-  }
-  if(currentCode && currentCode.join("").size()>0)parsedCode << currentCode
+   def parsedCode = parseCode(source.text)
 
   /**
    * Applying PegDown.markdown to all parsed comments
@@ -142,9 +147,9 @@ def createGroc(File source, File output, String returningPath){
   }
 
   /**
-   * 
+   *
    *## The HTML template, thanks to MarkupBuilder
-   * 
+   *
    */
   def tl=new MarkupBuilder(new FileWriter(output)).html{
     head{
@@ -152,7 +157,7 @@ def createGroc(File source, File output, String returningPath){
       meta("http-equiv":"content-type", content:"text/html; charset=UTF8")
       /**
      * Inlining all the javascript and css
-     */      
+     */
       style(media:"all"){
         mkp.yieldUnescaped("http://twitter.github.com/bootstrap/1.4.0/bootstrap.min.css".toURL().text)
       }
